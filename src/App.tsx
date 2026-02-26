@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { db } from './firebase'; 
 import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 
-// IMPORT KOMPONEN - Pastikan nama file sesuai (Case Sensitive)
+// IMPORT KOMPONEN
+// PENTING: Pastikan nama file di folder src ADALAH PublicKeluhan.tsx (P dan K besar)
 import PublicKeluhan from './PublicKeluhan';
 import Dashboard from './Dashboard';
 import CleaningChecklist from './CleaningChecklist';
@@ -18,30 +19,30 @@ import { User, Keluhan, CleaningLog, MaintenanceLog, SecurityLog } from './types
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('pa_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
-  // State untuk data dari Firebase
   const [keluhans, setKeluhans] = useState<Keluhan[]>([]);
   const [cleaningLogs, setCleaningLogs] = useState<CleaningLog[]>([]);
   const [maintLogs, setMaintLogs] = useState<MaintenanceLog[]>([]);
-  const [secLogs, setSecLogs] = useState<SecurityLog[]>([]);
+  const [secLogs] = useState<SecurityLog[]>([]); // Sesuai state awal kamu
 
-  // --- MENGAMBIL DATA (REALTIME) ---
   useEffect(() => {
-    // Ambil Keluhan
+    if (!db) return;
+
     const qKeluhan = query(collection(db, "pa_keluhans"), orderBy("createdAt", "desc"));
     const unsubKeluhan = onSnapshot(qKeluhan, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Keluhan));
-      setKeluhans(data);
-    });
+      setKeluhans(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Keluhan)));
+    }, (err) => console.error("Firestore Error:", err));
 
-    // Ambil Cleaning Logs
     const unsubCleaning = onSnapshot(collection(db, "pa_cleaning"), (snapshot) => {
       setCleaningLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CleaningLog)));
     });
 
-    // Ambil Maintenance Logs
     const unsubMaint = onSnapshot(collection(db, "pa_maint"), (snapshot) => {
       setMaintLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MaintenanceLog)));
     });
@@ -53,7 +54,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // --- FUNGSI CRUD ---
   const handleAddKeluhan = async (data: any) => {
     try {
       await addDoc(collection(db, "pa_keluhans"), {
@@ -72,14 +72,6 @@ const App: React.FC = () => {
       await addDoc(collection(db, "pa_cleaning"), { ...data, createdAt: serverTimestamp() });
     } catch (err) {
       console.error("Gagal simpan cleaning:", err);
-    }
-  };
-
-  const handleDeleteKeluhan = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, "pa_keluhans", id));
-    } catch (err) {
-      console.error("Gagal hapus:", err);
     }
   };
 
@@ -106,7 +98,6 @@ const App: React.FC = () => {
           {user && <Header user={user} pendingComplaints={pendingComplaints} />}
           <div className="flex-1 overflow-y-auto p-4 md:p-8">
             <Routes>
-              {/* Route Utama */}
               <Route path="/" element={
                 user ? <Dashboard keluhans={keluhans} cleaning={cleaningLogs} maintenance={maintLogs} security={secLogs} /> 
                      : <PublicKeluhan existingKeluhans={keluhans} onAdd={handleAddKeluhan} />
@@ -120,7 +111,7 @@ const App: React.FC = () => {
               } />
               
               <Route path="/complaints" element={
-                user?.role === 'Admin' ? <ComplaintsAdmin keluhans={keluhans} onDelete={handleDeleteKeluhan} onUpdate={(k) => updateDoc(doc(db, "pa_keluhans", k.id), k)} /> 
+                user?.role === 'Admin' ? <ComplaintsAdmin keluhans={keluhans} onDelete={(id) => deleteDoc(doc(db, "pa_keluhans", id))} onUpdate={(k) => updateDoc(doc(db, "pa_keluhans", k.id), k)} /> 
                                        : <Navigate to="/" />
               } />
               
@@ -134,4 +125,4 @@ const App: React.FC = () => {
   );
 };
 
-export default App
+export default App;
