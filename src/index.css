@@ -2,8 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  padding: 0;
-  background-color: #f8fafc;
+/* Tambahan agar tidak blank saat loading */
+#root {
+  min-height: 100vh;
 }
