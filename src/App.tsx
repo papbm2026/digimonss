@@ -1,138 +1,53 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { MemoryRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { User, Keluhan, CleaningLog, MaintenanceLog, SecurityLog } from './types';
-import Dashboard from './pages/Dashboard';
-import Login from './pages/Login';
-import PublicKeluhan from './pages/PublicKeluhan';
-import CleaningChecklist from './pages/CleaningChecklist';
-import MaintenancePage from './pages/MaintenancePage';
-import SecurityPage from './pages/SecurityPage';
-import ComplaintsAdmin from './pages/ComplaintsAdmin';
-import Sidebar from './components/Sidebar';
-import Header from './components/Header';
+import { db } from './firebase'; // Import config yang Anda buat
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  updateDoc,
+  serverTimestamp 
+} from 'firebase/firestore';
 
 const App: React.FC = () => {
+  // ... state user tetap menggunakan localStorage untuk session login ...
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('pa_user');
     return saved ? JSON.parse(saved) : null;
   });
 
-  const [keluhans, setKeluhans] = useState<Keluhan[]>(() => {
-    const saved = localStorage.getItem('pa_keluhans');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // State data sekarang diinisialisasi kosong
+  const [keluhans, setKeluhans] = useState<Keluhan[]>([]);
+  const [cleaningLogs, setCleaningLogs] = useState<CleaningLog[]>([]);
+  // ... state lainnya ...
 
-  const [cleaningLogs, setCleaningLogs] = useState<CleaningLog[]>(() => {
-    const saved = localStorage.getItem('pa_cleaning');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [maintLogs, setMaintLogs] = useState<MaintenanceLog[]>(() => {
-    const saved = localStorage.getItem('pa_maint');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [secLogs, setSecLogs] = useState<SecurityLog[]>(() => {
-    const saved = localStorage.getItem('pa_security');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // --- SINCRONISASI FIRESTORE ---
 
   useEffect(() => {
-    localStorage.setItem('pa_keluhans', JSON.stringify(keluhans));
-  }, [keluhans]);
+    // Ambil Keluhan
+    const qKeluhan = query(collection(db, "keluhans"), orderBy("createdAt", "desc"));
+    const unsubKeluhan = onSnapshot(qKeluhan, (snapshot) => {
+      setKeluhans(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Keluhan)));
+    });
 
-  useEffect(() => {
-    localStorage.setItem('pa_cleaning', JSON.stringify(cleaningLogs));
-  }, [cleaningLogs]);
+    // Ambil Cleaning Logs
+    const unsubCleaning = onSnapshot(collection(db, "cleaning"), (snapshot) => {
+      setCleaningLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CleaningLog)));
+    });
 
-  useEffect(() => {
-    localStorage.setItem('pa_maint', JSON.stringify(maintLogs));
-  }, [maintLogs]);
+    return () => { unsubKeluhan(); unsubCleaning(); };
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('pa_security', JSON.stringify(secLogs));
-  }, [secLogs]);
+  // --- FUNGSI ACTION (CRUD) ---
 
-  const handleLogin = (u: User) => {
-    setUser(u);
-    localStorage.setItem('pa_user', JSON.stringify(u));
+  const addKeluhan = async (data: any) => {
+    await addDoc(collection(db, "keluhans"), { ...data, createdAt: serverTimestamp() });
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('pa_user');
+  const deleteKeluhan = async (id: string) => {
+    await deleteDoc(doc(db, "keluhans", id));
   };
 
-  const pendingComplaints = useMemo(() => {
-    return keluhans.filter(k => k.status === 'Menunggu' && !k.isValidated);
-  }, [keluhans]);
-
-  const renderProtectedRoute = (Component: React.ElementType, props: any = {}) => {
-    if (!user) {
-      return <Login onLogin={handleLogin} />;
-    }
-    return <Component user={user} {...props} />;
-  };
-
-  return (
-    <Router>
-      <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
-        {user && <Sidebar user={user} onLogout={handleLogout} />}
-        
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {user && <Header user={user} pendingComplaints={pendingComplaints} />}
-          <div className="flex-1 overflow-y-auto p-4 md:p-8">
-            <Routes>
-              <Route path="/" element={
-                user ? (
-                  user.role === 'Admin' || user.role === 'Viewer' ? (
-                    <Dashboard keluhans={keluhans} cleaning={cleaningLogs} maintenance={maintLogs} security={secLogs} />
-                  ) : user.role === 'ChecklistMaint' ? (
-                    <CleaningChecklist 
-                      user={user} 
-                      logs={cleaningLogs} 
-                      onAdd={(l) => setCleaningLogs(prev => [l, ...prev])} 
-                      onDelete={(id) => setCleaningLogs(prev => prev.filter(l => String(l.id) !== String(id)))} 
-                    />
-                  ) : user.role === 'Security' ? (
-                    <SecurityPage 
-                      user={user} 
-                      logs={secLogs} 
-                      onAdd={(l) => setSecLogs(prev => [l, ...prev])} 
-                      onDelete={(id) => setSecLogs(prev => prev.filter(l => String(l.id) !== String(id)))} 
-                    />
-                  ) : (
-                    <Dashboard keluhans={keluhans} cleaning={cleaningLogs} maintenance={maintLogs} security={secLogs} />
-                  )
-                ) : (
-                  <PublicKeluhan existingKeluhans={keluhans} onAdd={(k) => setKeluhans(prev => [k, ...prev])} />
-                )
-              } />
-
-              <Route path="/public" element={<PublicKeluhan existingKeluhans={keluhans} onAdd={(k) => setKeluhans(prev => [k, ...prev])} />} />
-              <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />} />
-              <Route path="/cleaning" element={renderProtectedRoute(CleaningChecklist, { logs: cleaningLogs, onAdd: (l: CleaningLog) => setCleaningLogs(prev => [l, ...prev]), onDelete: (id: string) => setCleaningLogs(prev => prev.filter(l => String(l.id) !== String(id))) })} />
-              <Route path="/maintenance" element={renderProtectedRoute(MaintenancePage, { logs: maintLogs, onAdd: (l: MaintenanceLog) => setMaintLogs(prev => [l, ...prev]), onDelete: (id: string) => setMaintLogs(prev => prev.filter(l => String(l.id) !== String(id))) })} />
-              <Route path="/security" element={renderProtectedRoute(SecurityPage, { logs: secLogs, onAdd: (l: SecurityLog) => setSecLogs(prev => [l, ...prev]), onDelete: (id: string) => setSecLogs(prev => prev.filter(l => String(l.id) !== String(id))) })} />
-              <Route path="/complaints" element={
-                user?.role === 'Admin' ? (
-                  <ComplaintsAdmin 
-                    keluhans={keluhans} 
-                    onUpdate={(k) => setKeluhans(prev => prev.map(item => item.id === k.id ? k : item))} 
-                    onDelete={(id) => setKeluhans(prev => prev.filter(k => String(k.id) !== String(id)))} 
-                  />
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              } />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </div>
-        </main>
-      </div>
-    </Router>
-  );
-};
-
-export default App;
+  // ... Gunakan fungsi ini di dalam Route Anda ...
