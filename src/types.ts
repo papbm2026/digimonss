@@ -1,4 +1,3 @@
-
 export type StatusTindakLanjut = 'Menunggu' | 'Proses' | 'Selesai';
 export type KategoriPelapor = 'Pegawai' | 'Pihak';
 
@@ -10,7 +9,7 @@ export interface User {
 }
 
 export interface Keluhan {
-  id: string;
+  id?: string; // Opsional karena id baru dibuat oleh Firebase
   tanggal: string;
   kategori: 'Kebersihan' | 'Perbaikan';
   subKategori?: string;
@@ -22,10 +21,11 @@ export interface Keluhan {
   evidenceAfter?: string;
   pelapor: string;
   isValidated?: boolean;
+  createdAt?: any; // Untuk menangani serverTimestamp dari Firebase
 }
 
 export interface CleaningLog {
-  id: string;
+  id?: string;
   tanggal: string;
   ruangan: string;
   lantai: 1 | 2;
@@ -34,22 +34,24 @@ export interface CleaningLog {
   isClean: boolean;
   catatan?: string;
   isValidated?: boolean;
+  createdAt?: any;
 }
 
 export interface MaintenanceLog {
-  id: string;
+  id?: string;
   tanggal: string;
   item: 'Gedung' | 'Halaman' | 'Kendaraan' | 'PC' | 'Laptop' | 'Printer' | 'AC';
   merekArea: string;
   deskripsiKerusakan: string;
   detailPerbaikan: string;
   petugas: string;
-  foto?: string; // base64 string
+  foto?: string; 
   isValidated?: boolean;
+  createdAt?: any;
 }
 
 export interface SecurityLog {
-  id: string;
+  id?: string;
   tanggal: string;
   petugas: string;
   shift: 'Pagi' | 'Siang' | 'Malam';
@@ -57,22 +59,20 @@ export interface SecurityLog {
   statusAman: boolean;
   keteranganTidakAman?: string;
   isValidated?: boolean;
-  // Khusus Malam & Gedung
+  createdAt?: any;
+  // Detail Checks
   isLampuMati?: boolean;
   isElektronikOff?: boolean;
   isPagarGembok?: boolean;
   isPintuKunci?: boolean;
   isLampuLuarHidup?: boolean;
-  // Khusus Tunggu Sidang
   isSterilisasi?: boolean;
   isPengaturanPengunjung?: boolean;
   isAksesPihak?: boolean;
   isAreaTerbatas?: boolean;
-  // Khusus Pos Depan
   isIdentifikasiPengunjung?: boolean;
   isPeriksaBarang?: boolean;
   isPeriksaKendaraan?: boolean;
-  // Khusus PTSP (New)
   isPeriksaPengunjungPTSP?: boolean;
   isAksesKeluarMasukPTSP?: boolean;
   isPengaturanPengunjungPTSP?: boolean;
